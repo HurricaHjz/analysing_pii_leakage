@@ -33,9 +33,14 @@ We recommend setting up a conda environment for this project.
 ```shell
 $ conda create -n pii-leakage python=3.10
 $ conda activate pii-leakage
+$ set PYTHONUTF8=1
 $ pip install -e .
 ```
-
+Notice for windows machine with gpu, the system might ask you for torch with cuda, more information [here](https://pytorch.org/get-started/locally/). (Notice although the requirement ask for torch version to be  < 2.0; newest still works, below are code for 1.13.1 with cuda)
+```shell
+# Windows and Linux
+$ pip install torch==1.13.1+cu117 torchvision==0.14.1+cu117 torchaudio==0.13.1 --extra-index-url https://download.pytorch.org/whl/cu117
+```
 
 ## Usage
 
