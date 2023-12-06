@@ -44,7 +44,7 @@ $ pip install torch==1.13.1+cu117 torchvision==0.14.1+cu117 torchaudio==0.13.1 -
 Potential additional set-up before running (in windows):
 ```shell
 # if warning occurs
-set PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb:128
+set PYTORCH_CUDA_ALLOC_CONF=max_split_size_mb: {replace with appropriate memory usage}
 # test setting env successful
 echo %PYTORCH_CUDA_ALLOC_CONF%
 ```
