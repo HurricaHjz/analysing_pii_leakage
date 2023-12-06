@@ -319,7 +319,9 @@ class LanguageModel:
         eval_dataset = eval_dataset.shuffle().select(list(range(train_args.limit_eval_dataset)))
         train_dataset, eval_dataset = self.tokenize_datasets([train_dataset, eval_dataset])
         print("Done Tokenizing!")
+        
 
+        print("\n 1 \n")
         train_args.evaluation_strategy = "no"
         trainer = Trainer(model=self._lm,
                           args=train_args,
@@ -327,7 +329,10 @@ class LanguageModel:
                           eval_dataset=eval_dataset,
                           data_collator=data_collator,
                           callbacks=extra_callbacks)
-
+        print("\n 2 \n")
         trainer.train(resume_from_checkpoint=train_args.resume_from_checkpoint)
+        print("\n 3 \n")
         trainer.save_model()
+        print("\n 4 \n")
         self._lm.eval()
+        print("\n 5 \n")
