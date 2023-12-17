@@ -3,5 +3,5 @@ from dataclasses import dataclass
 
 @dataclass
 class LocalConfigs:
-    CACHE_DIR = "./cache_memory"
+    CACHE_DIR = "./.cache"
     IMAGENET_ROOT = "./img_root"
