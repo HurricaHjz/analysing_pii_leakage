@@ -7,12 +7,13 @@ dataset_args:
 attack_args:
   attack_name: naive_extraction
   sampling_rate: 15000
+  # sampling_rate: 2500
   seq_len: 256
 
 model_args:
   architecture: gpt2
   pre_trained: True
-  model_ckpt: ../echr_undefended # Edit this path to try your own model.
+  model_ckpt: ../models/MG01
 
 ner_args:
   ner: flair
@@ -21,4 +22,5 @@ ner_args:
   anonymize: False
 
 env_args:
-  eval_batch_size: 64
+  # eval_batch_size: 64
+  eval_batch_size: 8
