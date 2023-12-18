@@ -53,7 +53,7 @@ def fine_tune(model_args: ModelArgs,
 
     print_dict_highlighted(vars(config_args.get_privacy_args()))
     
-    lm: LanguageModel = ModelFactory.from_model_args(model_args, env_args=env_args).load() #TODO delete and put it later as usual
+    lm: LanguageModel = ModelFactory.from_model_args(model_args, env_args=env_args).load(True) #TODO delete and put it later as usual
 
     # -- Load the datasets
     train_dataset: RealDataset = DatasetFactory.from_dataset_args(dataset_args.set_split("train"),
