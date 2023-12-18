@@ -14,7 +14,7 @@ trainer_args:
   per_device_eval_batch_size: 2
 
 model_args:
-  architecture: bert
+  architecture: bert-base-uncased
   pre_trained: True   # Start from a pre-trained checkpoint
 
 ner_args:
