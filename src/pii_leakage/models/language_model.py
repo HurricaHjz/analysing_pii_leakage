@@ -313,7 +313,8 @@ class LanguageModel:
         extra_callbacks += [EvaluatePerplexityCallback(dataset=eval_dataset, model=self, prefix="Eval PPL",
                                                        num_steps=train_args.callback_after_n_steps)]
 
-        data_collator = DataCollatorForLanguageModeling(tokenizer=self._tokenizer, mlm=False)
+        # data_collator = DataCollatorForLanguageModeling(tokenizer=self._tokenizer, mlm=False)
+        data_collator = DataCollatorForLanguageModeling(tokenizer=self._tokenizer, mlm=True) # TODO: change it back for gpt
 
         print("Tokenizing Train and Eval Datasets ..")
         eval_dataset = eval_dataset.shuffle().select(list(range(train_args.limit_eval_dataset)))
