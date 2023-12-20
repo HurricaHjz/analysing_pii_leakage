@@ -15,7 +15,7 @@ eval_args:
 model_args:
   architecture: gpt2
   pre_trained: True
-  model_ckpt: ./model
+  model_ckpt: ../pii_models/MG02
 
 ner_args:
   ner: flair
