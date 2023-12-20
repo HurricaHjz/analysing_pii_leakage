@@ -76,8 +76,7 @@ class LanguageModel:
     def load(self, verbose: bool = False) -> 'LanguageModel':
         """ Loads the model and tokenizer from the checkpoint.
         """
-        model_cls, tokenizer = AutoModelForCausalLM, AutoTokenizer ## TODO change back to original for gpt2
-        # model_cls, tokenizer = AutoModelForSequenceClassification, AutoTokenizer 
+        model_cls, tokenizer = AutoModelForCausalLM, AutoTokenizer 
 
         if self.model_args.model_ckpt:  # always load the checkpoint if provided.
             if verbose:
@@ -100,12 +99,12 @@ class LanguageModel:
         self._tokenizer = tokenizer.from_pretrained(self.model_args.architecture,
                                                     use_fast=self.model_args.tokenizer_use_fast)
         num_added_toks = self._tokenizer.add_special_tokens({'pad_token': '[PAD]'})
-        # mean_tok_emb = self._lm.transformer.wte.weight.data.mean(dim=0) TODO recover
+        mean_tok_emb = self._lm.transformer.wte.weight.data.mean(dim=0)  #TODO recover
         self._lm.resize_token_embeddings(len(self._tokenizer))
 
-        # Initialize the newly-added token embedding to the mean of all token embeddings TODO recover
-        # for i in range(num_added_toks):
-        #     self._lm.transformer.wte.weight.data[-(i + 1), :] = mean_tok_emb
+        # Initialize the newly-added token embedding to the mean of all token embeddings #TODO recover
+        for i in range(num_added_toks):
+            self._lm.transformer.wte.weight.data[-(i + 1), :] = mean_tok_emb
 
         self._lm.to(self.env_args.device)
         return self
@@ -314,8 +313,8 @@ class LanguageModel:
         extra_callbacks += [EvaluatePerplexityCallback(dataset=eval_dataset, model=self, prefix="Eval PPL",
                                                        num_steps=train_args.callback_after_n_steps)]
 
-        # data_collator = DataCollatorForLanguageModeling(tokenizer=self._tokenizer, mlm=False)
-        data_collator = DataCollatorForLanguageModeling(tokenizer=self._tokenizer, mlm=True) # TODO: change it back for gpt
+        data_collator = DataCollatorForLanguageModeling(tokenizer=self._tokenizer, mlm=False)
+        # data_collator = DataCollatorForLanguageModeling(tokenizer=self._tokenizer, mlm=True) # TODO: change it back for gpt
 
         print("Tokenizing Train and Eval Datasets ..")
         eval_dataset = eval_dataset.shuffle().select(list(range(train_args.limit_eval_dataset)))
