@@ -16,6 +16,7 @@ class ModelFactory:
         elif "gpt" in model_args.architecture:
             return GPT2(model_args=model_args, env_args=env_args)
         elif "bert" in model_args.architecture:
+            print("\nloading a bert model\n")
             return BERT(model_args=model_args, env_args=env_args)
         else:
             raise ValueError(model_args.architecture)

@@ -9,7 +9,7 @@ import dp_transformers
 import numpy as np
 import torch
 from tqdm import tqdm
-from transformers import DataCollatorForLanguageModeling, Trainer, AutoTokenizer, AutoModelForCausalLM, \
+from transformers import DataCollatorForLanguageModeling, Trainer, AutoTokenizer, AutoModelForCausalLM, AutoModelForSequenceClassification, \
     TrainerCallback
 
 from ..arguments.env_args import EnvArgs
@@ -76,7 +76,8 @@ class LanguageModel:
     def load(self, verbose: bool = False) -> 'LanguageModel':
         """ Loads the model and tokenizer from the checkpoint.
         """
-        model_cls, tokenizer = AutoModelForCausalLM, AutoTokenizer
+        model_cls, tokenizer = AutoModelForCausalLM, AutoTokenizer ## TODO change back to original for gpt2
+        # model_cls, tokenizer = AutoModelForSequenceClassification, AutoTokenizer 
 
         if self.model_args.model_ckpt:  # always load the checkpoint if provided.
             if verbose:
@@ -99,12 +100,12 @@ class LanguageModel:
         self._tokenizer = tokenizer.from_pretrained(self.model_args.architecture,
                                                     use_fast=self.model_args.tokenizer_use_fast)
         num_added_toks = self._tokenizer.add_special_tokens({'pad_token': '[PAD]'})
-        mean_tok_emb = self._lm.transformer.wte.weight.data.mean(dim=0)
+        # mean_tok_emb = self._lm.transformer.wte.weight.data.mean(dim=0) TODO recover
         self._lm.resize_token_embeddings(len(self._tokenizer))
 
-        # Initialize the newly-added token embedding to the mean of all token embeddings
-        for i in range(num_added_toks):
-            self._lm.transformer.wte.weight.data[-(i + 1), :] = mean_tok_emb
+        # Initialize the newly-added token embedding to the mean of all token embeddings TODO recover
+        # for i in range(num_added_toks):
+        #     self._lm.transformer.wte.weight.data[-(i + 1), :] = mean_tok_emb
 
         self._lm.to(self.env_args.device)
         return self
