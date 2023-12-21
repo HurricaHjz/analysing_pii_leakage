@@ -1,7 +1,7 @@
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT License.
 
-from transformers import RobertaConfig
+from transformers import BertGenerationConfig
 
 from .language_model import LanguageModel
 
@@ -10,6 +10,7 @@ class BERT(LanguageModel):
     """ A custom convenience wrapper around huggingface Bert utils """
 
     def get_config(self):
-        return RobertaConfig()
+        print("\n get config for bert generation\n")
+        return BertGenerationConfig()
         
 
