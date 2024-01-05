@@ -95,23 +95,28 @@ class LanguageModel:
                 print(f"> Loading an uninitialized {self.model_args.architecture} model.")
             self._lm = model_cls(config=self.get_config())
             
-        # ## version for bert --------- #TODO active when using bert
-        # self._tokenizer = tokenizer.from_pretrained(self.model_args.architecture,
-        #                                             use_fast=self.model_args.tokenizer_use_fast)
-        # num_added_toks = self._tokenizer.add_special_tokens({'pad_token': '[PAD]'})
-
-        # self._lm.resize_token_embeddings(len(self._tokenizer))
-
-        # version for gpt 2 ---------
+        ## version for bert --------- #TODO active when using bert
         self._tokenizer = tokenizer.from_pretrained(self.model_args.architecture,
                                                     use_fast=self.model_args.tokenizer_use_fast)
         num_added_toks = self._tokenizer.add_special_tokens({'pad_token': '[PAD]'})
-        mean_tok_emb = self._lm.transformer.wte.weight.data.mean(dim=0)  
-        self._lm.resize_token_embeddings(len(self._tokenizer))
 
-        # Initialize the newly-added token embedding to the mean of all token embeddings 
-        for i in range(num_added_toks):
-            self._lm.transformer.wte.weight.data[-(i + 1), :] = mean_tok_emb
+        self._lm.resize_token_embeddings(len(self._tokenizer))
+        
+        #-----------------------
+
+        # # version for gpt 2 ---------
+        # self._tokenizer = tokenizer.from_pretrained(self.model_args.architecture,
+        #                                             use_fast=self.model_args.tokenizer_use_fast)
+        # num_added_toks = self._tokenizer.add_special_tokens({'pad_token': '[PAD]'})
+        # mean_tok_emb = self._lm.transformer.wte.weight.data.mean(dim=0)  
+        # self._lm.resize_token_embeddings(len(self._tokenizer))
+        # # Initialize the newly-added token embedding to the mean of all token embeddings 
+        # for i in range(num_added_toks):
+        #     self._lm.transformer.wte.weight.data[-(i + 1), :] = mean_tok_emb
+
+        # #-------------------
+
+
 
         self._lm.to(self.env_args.device)
         return self
