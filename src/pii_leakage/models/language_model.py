@@ -10,7 +10,7 @@ import numpy as np
 import torch
 from tqdm import tqdm
 from transformers import DataCollatorForLanguageModeling, Trainer, AutoTokenizer, AutoModelForCausalLM, AutoModelForSequenceClassification, \
-    TrainerCallback
+    TrainerCallback, BertModel
 
 from ..arguments.env_args import EnvArgs
 from ..arguments.model_args import ModelArgs
@@ -97,9 +97,10 @@ class LanguageModel:
             
         ## version for bert --------- #TODO active when using bert
         self._tokenizer = tokenizer.from_pretrained(self.model_args.architecture,
-                                                    use_fast=self.model_args.tokenizer_use_fast)
+                                                use_fast=self.model_args.tokenizer_use_fast)
         num_added_toks = self._tokenizer.add_special_tokens({'pad_token': '[PAD]'})
-
+        
+        # Resize token embeddings in case the tokenizer has been changed
         self._lm.resize_token_embeddings(len(self._tokenizer))
         
         #-----------------------
