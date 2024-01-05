@@ -1,5 +1,6 @@
 # Fine-tune an LM on the enron text dataset.
 
+# train size: 0.3 (total 8860)
 dataset_args:
   dataset_path: ../src/pii_leakage/extern/echr
   dataset_mode: undefended
