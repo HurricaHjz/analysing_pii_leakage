@@ -245,7 +245,7 @@ class LanguageModel:
             input_ids = torch.tensor(encoded_input).unsqueeze(0).to(self.env_args.device)
             target_ids = input_ids.clone()
 
-            
+
 
             if offset > 0:  # ignore everything up to the offset
                 target_ids[:, :offset] = -100
@@ -348,7 +348,7 @@ class LanguageModel:
                                                        num_steps=train_args.callback_after_n_steps)]
 
         data_collator = DataCollatorForLanguageModeling(tokenizer=self._tokenizer, mlm=False)
-        # data_collator = DataCollatorForLanguageModeling(tokenizer=self._tokenizer, mlm=True) #TODO modify for Bert, change back for GPTs
+
 
         print("Tokenizing Train and Eval Datasets ..")
         eval_dataset = eval_dataset.shuffle().select(list(range(train_args.limit_eval_dataset)))
