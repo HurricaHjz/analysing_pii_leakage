@@ -208,7 +208,7 @@ class LanguageModel:
 
     def tokenize_datasets(self, datasets: List[RealDataset], column_name="text") -> List:
         """ Tokenizes the 'text' column of a list of dataset using this model's tokenizer """
-        tokenize_function = lambda x: self._tokenizer(x[column_name], truncation=True)
+        # tokenize_function = lambda x: self._tokenizer(x[column_name], truncation=True)
         tokenize_function = lambda x: self._tokenizer(x[column_name], truncation=True, max_length=512) #TODO add max_len
         return [dataset.get_hf_dataset().map(tokenize_function, batched=True).select_columns(['input_ids', 'attention_mask']) for dataset in datasets]
 
