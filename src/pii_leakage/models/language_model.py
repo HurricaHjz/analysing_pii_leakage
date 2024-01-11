@@ -164,7 +164,8 @@ class LanguageModel:
         out = self._lm.generate(
             input_ids=input_ids.to(self.env_args.device),
             attention_mask=attention_mask.to(self.env_args.device),
-            max_length=min(self.n_positions, input_len + sampling_args.seq_len),
+            # max_length=min(self.n_positions, input_len + sampling_args.seq_len), TODO change it back for bert
+            max_length = 512,
             do_sample=sampling_args.do_sample,
             top_k=sampling_args.top_k,
             top_p=sampling_args.top_p,
@@ -207,8 +208,22 @@ class LanguageModel:
 
     def tokenize_datasets(self, datasets: List[RealDataset], column_name="text") -> List:
         """ Tokenizes the 'text' column of a list of dataset using this model's tokenizer """
+        tokenize_function = lambda x: self._tokenizer(x[column_name], truncation=True)
         tokenize_function = lambda x: self._tokenizer(x[column_name], truncation=True, max_length=512) #TODO add max_len
         return [dataset.get_hf_dataset().map(tokenize_function, batched=True).select_columns(['input_ids', 'attention_mask']) for dataset in datasets]
+
+    ## TODO potential better solution (split into chunks)
+    # def split_into_chunks(examples):
+    #     chunks = []
+    #     for text in examples['text']:
+    #         tokens = tokenizer.encode(text, add_special_tokens=False)
+    #         for i in range(0, len(tokens), 512):
+    #             chunk = tokens[i:i+512]
+    #             chunks.append(tokenizer.decode(chunk))
+    #     return {'text': chunks}
+
+    # chunked_dataset = dataset.map(split_into_chunks, batched=True)
+
 
     def perplexity(self, data: Union[list, str], offset=0, max_length=512, apply_exp=True, verbose=True,
                    return_as_list: bool = False) -> float:
@@ -229,6 +244,8 @@ class LanguageModel:
             encoded_input = self._tokenizer.encode(txt, truncation=True, max_length=max_length)
             input_ids = torch.tensor(encoded_input).unsqueeze(0).to(self.env_args.device)
             target_ids = input_ids.clone()
+
+            
 
             if offset > 0:  # ignore everything up to the offset
                 target_ids[:, :offset] = -100
