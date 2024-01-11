@@ -59,9 +59,10 @@ def fine_tune(model_args: ModelArgs,
                                                                   ner_args=ner_args, env_args=env_args)
     eval_dataset: RealDataset = DatasetFactory.from_dataset_args(dataset_args.set_split("test"),
                                                                  ner_args=ner_args, env_args=env_args)
-
+    
     # -- Load the LM
-    lm: LanguageModel = ModelFactory.from_model_args(model_args, env_args=env_args).load()
+    lm: LanguageModel = ModelFactory.from_model_args(model_args, env_args=env_args).load(verbose=True)
+    
 
     # -- Print configuration
     output_folder = outdir_args.create_folder_name()

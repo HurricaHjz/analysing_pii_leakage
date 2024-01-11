@@ -10,7 +10,7 @@ import numpy as np
 import torch
 from tqdm import tqdm
 from transformers import DataCollatorForLanguageModeling, Trainer, AutoTokenizer, AutoModelForCausalLM, AutoModelForSequenceClassification, \
-    TrainerCallback, BertModel
+    TrainerCallback, BertModel, EncoderDecoderModel
 
 from ..arguments.env_args import EnvArgs
 from ..arguments.model_args import ModelArgs
@@ -207,10 +207,10 @@ class LanguageModel:
 
     def tokenize_datasets(self, datasets: List[RealDataset], column_name="text") -> List:
         """ Tokenizes the 'text' column of a list of dataset using this model's tokenizer """
-        tokenize_function = lambda x: self._tokenizer(x[column_name], truncation=True)
+        tokenize_function = lambda x: self._tokenizer(x[column_name], truncation=True, max_length=512) #TODO add max_len
         return [dataset.get_hf_dataset().map(tokenize_function, batched=True).select_columns(['input_ids', 'attention_mask']) for dataset in datasets]
 
-    def perplexity(self, data: Union[list, str], offset=0, max_length=0, apply_exp=True, verbose=True,
+    def perplexity(self, data: Union[list, str], offset=0, max_length=512, apply_exp=True, verbose=True,
                    return_as_list: bool = False) -> float:
         """ Compute the perplexity of the model on a string.
         """
@@ -222,8 +222,12 @@ class LanguageModel:
 
         nlls = []  # negative log likelihoods
         ctr = 0  # Number of tokens viewed
+        # for txt in tqdm(data, desc="Compute PPL", disable=not verbose):
+        #     input_ids = torch.tensor(self._tokenizer.encode(txt, truncation=True)).unsqueeze(0).to(self.env_args.device)
+        #     target_ids = input_ids.clone() #TODO modify max_length in token
         for txt in tqdm(data, desc="Compute PPL", disable=not verbose):
-            input_ids = torch.tensor(self._tokenizer.encode(txt, truncation=True)).unsqueeze(0).to(self.env_args.device)
+            encoded_input = self._tokenizer.encode(txt, truncation=True, max_length=max_length)
+            input_ids = torch.tensor(encoded_input).unsqueeze(0).to(self.env_args.device)
             target_ids = input_ids.clone()
 
             if offset > 0:  # ignore everything up to the offset
@@ -326,8 +330,8 @@ class LanguageModel:
         extra_callbacks += [EvaluatePerplexityCallback(dataset=eval_dataset, model=self, prefix="Eval PPL",
                                                        num_steps=train_args.callback_after_n_steps)]
 
-        # data_collator = DataCollatorForLanguageModeling(tokenizer=self._tokenizer, mlm=False)
-        data_collator = DataCollatorForLanguageModeling(tokenizer=self._tokenizer, mlm=True) #TODO modify for Bert, change back for GPTs
+        data_collator = DataCollatorForLanguageModeling(tokenizer=self._tokenizer, mlm=False)
+        # data_collator = DataCollatorForLanguageModeling(tokenizer=self._tokenizer, mlm=True) #TODO modify for Bert, change back for GPTs
 
         print("Tokenizing Train and Eval Datasets ..")
         eval_dataset = eval_dataset.shuffle().select(list(range(train_args.limit_eval_dataset)))
