@@ -98,7 +98,6 @@ class LanguageModel:
         ## version for bert --------- #TODO active when using bert
         self._tokenizer = tokenizer.from_pretrained(self.model_args.architecture,
                                                 use_fast=self.model_args.tokenizer_use_fast)
-        num_added_toks = self._tokenizer.add_special_tokens({'pad_token': '[PAD]'})
         
         # Resize token embeddings in case the tokenizer has been changed
         self._lm.resize_token_embeddings(len(self._tokenizer))
@@ -208,21 +207,75 @@ class LanguageModel:
 
     def tokenize_datasets(self, datasets: List[RealDataset], column_name="text") -> List:
         """ Tokenizes the 'text' column of a list of dataset using this model's tokenizer """
-        # tokenize_function = lambda x: self._tokenizer(x[column_name], truncation=True)
-        tokenize_function = lambda x: self._tokenizer(x[column_name], truncation=True, max_length=512) #TODO add max_len
-        return [dataset.get_hf_dataset().map(tokenize_function, batched=True).select_columns(['input_ids', 'attention_mask']) for dataset in datasets]
+        # tokenize_function = lambda x: self._tokenizer(x[column_name], truncation=True) # TODO add chunk during tokenization
+        # return [dataset.get_hf_dataset().map(tokenize_function, batched=True).select_columns(['input_ids', 'attention_mask']) for dataset in datasets]
+        
+        def tokenize_function(txt):
 
-    ## TODO potential better solution (split into chunks)
-    # def split_into_chunks(examples):
-    #     chunks = []
-    #     for text in examples['text']:
-    #         tokens = tokenizer.encode(text, add_special_tokens=False)
-    #         for i in range(0, len(tokens), 512):
-    #             chunk = tokens[i:i+512]
-    #             chunks.append(tokenizer.decode(chunk))
-    #     return {'text': chunks}
+            # define the chunk size and return columns
+            chunk_size = 512 
+            input_ids = []
+            attention_mask = []
 
-    # chunked_dataset = dataset.map(split_into_chunks, batched=True)
+            # tokenize dataset
+            tokens = self._tokenizer(txt[column_name], truncation=True)
+
+            print(tokens["input_ids"])
+            print(len(tokens["input_ids"]))
+
+            
+            # loop for every sentence within the dataset
+            for k in range(len(tokens["input_ids"])):
+                # split the sentence into shorter ones with maximum length 512-2
+                # load sentence
+                split_size = chunk_size - 2
+                input_id_s = tokens['input_ids'][k]
+                attention_mask_s = tokens['attention_mask'][k]
+            
+                
+                # split sentence
+                input_id_cks = [input_id_s[i:i + split_size] for i in range(0, len(input_id_s), split_size)]
+                attention_mask_cks = [attention_mask_s[i:i + split_size] for i in range(0, len(attention_mask_s), split_size)]
+             
+                # add paddings and special tokens
+                for i in range(len(input_id_cks)):
+                    # add CLS and SEP to seperate each chunk
+                    input_id_cks[i].insert(0, 101)
+                    input_id_cks[i].append(102)
+                 
+                    # add attention mask to show they are valid special tokens
+                    attention_mask_cks[i].insert(0, 1)
+                    attention_mask_cks[i].append(1)
+                    
+                    # add paddings
+                    pad_len = chunk_size - len(input_id_cks[i])
+                    if pad_len > 0:
+                        input_id_cks[i].extend([0]*pad_len)
+                        attention_mask_cks[i].extend([0]*pad_len)
+
+                # add the chunks back to the output list
+                input_ids.extend(input_id_cks)
+                attention_mask.extend(attention_mask_cks)
+            
+                
+            print(f'len of the first chunk (should be 512): {len(input_ids[0])}')
+
+            # stack the two columns back as a dictionary for returning
+            out_dict = {
+                'input_ids': input_ids,
+                'attention_mask': attention_mask
+            }
+
+            from transformers.tokenization_utils_base import BatchEncoding
+            
+            out_token = BatchEncoding(data= out_dict)
+            print(len(out_token['input_ids']))
+            # print(out_token["attention_mask"][0])
+
+            return out_token
+
+        return [dataset.get_hf_dataset().map(tokenize_function, batched = True) for dataset in datasets]
+
 
 
     def perplexity(self, data: Union[list, str], offset=0, max_length=512, apply_exp=True, verbose=True,
@@ -282,6 +335,11 @@ class LanguageModel:
 
         with train_args.main_process_first(desc="Tokenizing datasets"):
             hf_train_dataset, hf_eval_dataset = self.tokenize_datasets([train_dataset, eval_dataset])
+        
+        print(hf_train_dataset)
+        print(f'shape of the dataset train: {hf_train_dataset.shape} \n')
+        print(hf_eval_dataset)
+        print(f'shape of the dataset eval: {hf_eval_dataset.shape} \n')
 
         self._lm = self._lm.to(self.env_args.device)
         self._lm.train()
@@ -354,6 +412,8 @@ class LanguageModel:
         eval_dataset = eval_dataset.shuffle().select(list(range(train_args.limit_eval_dataset)))
         train_dataset, eval_dataset = self.tokenize_datasets([train_dataset, eval_dataset])
         print("Done Tokenizing!")
+
+
         
 
         print("\n 1 \n")
