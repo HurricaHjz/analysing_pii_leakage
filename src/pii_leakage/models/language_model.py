@@ -329,7 +329,7 @@ class LanguageModel:
             input_ids = list(itertools.chain(*[chunk for chunk in d['input_ids']]))
             attention_mask = list(itertools.chain(*[chunk for chunk in d['attention_mask']]))
 
-            d['input_ids'] = input_ids,
+            d['input_ids'] = input_ids,  # TODO allow delete old columns and add new columns
             d['attention_mask'] = attention_mask
 
 
