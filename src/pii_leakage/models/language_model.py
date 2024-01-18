@@ -11,6 +11,7 @@ import torch
 from tqdm import tqdm
 from transformers import DataCollatorForLanguageModeling, Trainer, AutoTokenizer, AutoModelForCausalLM, AutoModelForSequenceClassification, \
     TrainerCallback, BertModel, EncoderDecoderModel
+from datasets import load_from_disk
 
 from ..arguments.env_args import EnvArgs
 from ..arguments.model_args import ModelArgs
@@ -207,70 +208,9 @@ class LanguageModel:
     
     def tokenize_datasets(self, datasets: List[RealDataset], column_name="text") -> List:
         """ Tokenizes the 'text' column of a list of dataset using this model's tokenizer """
-        tokenize_function = lambda x: self._tokenizer(x[column_name]) # TODO add chunk during tokenization
-        ds_list = [dataset.get_hf_dataset().map(tokenize_function).select_columns(['input_ids', 'attention_mask']) for dataset in datasets]
-        # for d in ds_list:
-        #     print(len(d['input_ids']))
-        #     print(type(d['input_ids']))
-        #     print(len(d['input_ids'][0]))
-        #     print(d['input_ids'][0])
-        #     print(type(d['input_ids'][0]))
-        #     print(type(d))
-        return ds_list
-
-        #     # define the chunk size and return columns
-        #     chunk_size = 512 
-        #     split_size = chunk_size - 2
-        #     input_ids = []
-        #     attention_mask = []
-            
-        #     # loop for every sentence within the dataset
-        #     for k in range(len(d["input_ids"])):
-        #         # split the sentence into shorter ones with maximum length 512-2
-        #         # load sentence
-        #         input_id_s = d['input_ids'][k]
-        #         attention_mask_s = d['attention_mask'][k]
-            
-        #         # split sentence
-        #         input_id_cks = [input_id_s[i:i + split_size] for i in range(0, len(input_id_s), split_size)]
-        #         attention_mask_cks = [attention_mask_s[i:i + split_size] for i in range(0, len(attention_mask_s), split_size)]
-             
-        #         # add paddings and special tokens
-        #         for i in range(len(input_id_cks)):
-        #             # add CLS and SEP to seperate each chunk
-        #             input_id_cks[i].insert(0, 101)
-        #             input_id_cks[i].append(102)
-                 
-        #             # add attention mask to show they are valid special tokens
-        #             attention_mask_cks[i].insert(0, 1)
-        #             attention_mask_cks[i].append(1)
-                    
-        #             # add paddings if needed
-        #             pad_len = chunk_size - len(input_id_cks[i])
-        #             if pad_len > 0:
-        #                 input_id_cks[i].extend([0]*pad_len)
-        #                 attention_mask_cks[i].extend([0]*pad_len)
-
-        #         # add the chunks back to the output list
-        #         input_ids.extend(input_id_cks)
-        #         attention_mask.extend(attention_mask_cks)
-        #         print(k)
-            
-                
-        #     print(f'len of the first chunk (should be 512): {len(input_ids[0])}')
-
-        #     # stack the two columns back as a dictionary for returning
-        #     out_dict = {
-        #         'input_ids': input_ids,
-        #         'attention_mask': attention_mask
-        #     }
-
-        #     rtn_list.append(out_dict)
-
-        # return rtn_list
-
-
-
+        # tokenize_function = lambda x: self._tokenizer(x[column_name], truncation=True) # TODO add chunk during tokenization
+        # return [dataset.get_hf_dataset().map(tokenize_function, batched=True).select_columns(['input_ids', 'attention_mask']) for dataset in datasets]
+        
         def tokenize_function(txt):
 
             # define the chunk size and return columns
@@ -279,70 +219,145 @@ class LanguageModel:
             attention_mask = []
 
             # tokenize dataset
-            tokens = self._tokenizer(txt[column_name], return_tensors='pt')
+            tokens = self._tokenizer(txt[column_name])
 
-            # split sequence
-            input_id_chunks = list(tokens['input_ids'][0].split(510))
-            mask_chunks = list(tokens['attention_mask'][0].split(510))
+            # loop for every sentence within the dataset
+            for k in range(len(tokens["input_ids"])):
+                # split the sentence into shorter ones with maximum length 512-2
+                # load sentence
+                split_size = chunk_size - 2
+                input_id_s = tokens['input_ids'][k]
+                attention_mask_s = tokens['attention_mask'][k]
+            
+                
+                # split sentence
+                input_id_cks = [input_id_s[i:i + split_size] for i in range(0, len(input_id_s), split_size)]
+                attention_mask_cks = [attention_mask_s[i:i + split_size] for i in range(0, len(attention_mask_s), split_size)]
              
-            for i in range(len(input_id_chunks)):
-                # add special tokens
-                input_id_chunks[i] = torch.cat([
-                    torch.Tensor([101]), input_id_chunks[i],torch.Tensor([102])
-                ])
-                mask_chunks[i] = torch.cat([
-                    torch.Tensor([1]), mask_chunks[i],torch.Tensor([1])
-                ])
-                # do padding 
-                pad_len = chunk_size - input_id_chunks[i].shape[0]
-                if pad_len > 0:
-                    input_id_chunks[i] = torch.cat([
-                        input_id_chunks[i],torch.Tensor([0]*pad_len)
-                    ])
-                    mask_chunks[i] = torch.cat([
-                            mask_chunks[i],torch.Tensor([0]*pad_len)
-                        ])
-            # stack output
-            input_ids = torch.stack(input_id_chunks)
-            attention_mask = torch.stack(mask_chunks)
+                # add paddings and special tokens
+                for i in range(len(input_id_cks)):
+                    # add CLS and SEP to seperate each chunk
+                    input_id_cks[i].insert(0, 101)
+                    input_id_cks[i].append(102)
+                 
+                    # add attention mask to show they are valid special tokens
+                    attention_mask_cks[i].insert(0, 1)
+                    attention_mask_cks[i].append(1)
+                    
+                    # add paddings
+                    pad_len = chunk_size - len(input_id_cks[i])
+                    if pad_len > 0:
+                        input_id_cks[i].extend([0]*pad_len)
+                        attention_mask_cks[i].extend([0]*pad_len)
 
-            rtn_dict = {
-                'input_ids': input_ids.long(),
-                'attention_mask': attention_mask.long()
+                # add the chunks back to the output list
+                input_ids.extend(input_id_cks)
+                attention_mask.extend(attention_mask_cks)
+            
+                
+            print(f'len of the first chunk (should be 512): {len(input_ids[0])}')
+
+            # stack the two columns back as a dictionary for returning
+            out_dict = {
+                'chunk_ids': input_ids,
+                'chunk_mask': attention_mask
             }
-            return rtn_dict
+
+            return out_dict
         
-        rtn_list = [dataset.get_hf_dataset().map(tokenize_function).select_columns(['input_ids', 'attention_mask']) for dataset in datasets]
-        import itertools
+        # map the tokenize function, remove old columns and change name for new columns
+        rtn_list = []
+        for dataset in datasets:
+            d = dataset.get_hf_dataset().map(tokenize_function, batched = True, remove_columns = dataset.get_hf_dataset().column_names)
+            d = d.rename_column('chunk_ids', 'input_ids')
+            d = d.rename_column('chunk_mask', 'attention_mask')
+            rtn_list.append(d)
 
-        for d in rtn_list:
-            print(len(d['input_ids']))
-            print(type(d['input_ids']))
-            print(len(d['input_ids'][0]))
-            print(d['input_ids'][0])
-            print(type(d['input_ids'][0]))
-            print(type(d))
-            print(dir(d))
-
-        for d in rtn_list:
-            # Flatten the nested lists using itertools.chain
-            input_ids = list(itertools.chain(*[chunk for chunk in d['input_ids']]))
-            attention_mask = list(itertools.chain(*[chunk for chunk in d['attention_mask']]))
-
-            d['input_ids'] = input_ids,  # TODO allow delete old columns and add new columns
-            d['attention_mask'] = attention_mask
-
-
-        for d in rtn_list:
-            print(len(d['input_ids']))
-            print(type(d['input_ids']))
-            print(len(d['input_ids'][0]))
-            print(d['input_ids'][0])
-            print(type(d['input_ids'][0]))
-            print(type(d))
-            print(dir(d))
+        # for d in rtn_list:
+        #     print(len(d['input_ids']))
+        #     print(type(d['input_ids']))
+        #     print(len(d['input_ids'][0]))
+        #     print(d['input_ids'][0])
+        #     print(type(d['input_ids'][0]))
+        #     print(type(d))
+        #     print(dir(d))
 
         return rtn_list
+       
+
+
+        # def tokenize_function(txt):
+
+        #     # define the chunk size and return columns
+        #     chunk_size = 512 
+        #     input_ids = []
+        #     attention_mask = []
+
+        #     # tokenize dataset
+        #     tokens = self._tokenizer(txt[column_name], return_tensors='pt')
+
+        #     # split sequence
+        #     input_id_chunks = list(tokens['input_ids'][0].split(510))
+        #     mask_chunks = list(tokens['attention_mask'][0].split(510))
+             
+        #     for i in range(len(input_id_chunks)):
+        #         # add special tokens
+        #         input_id_chunks[i] = torch.cat([
+        #             torch.Tensor([101]), input_id_chunks[i],torch.Tensor([102])
+        #         ])
+        #         mask_chunks[i] = torch.cat([
+        #             torch.Tensor([1]), mask_chunks[i],torch.Tensor([1])
+        #         ])
+        #         # do padding 
+        #         pad_len = chunk_size - input_id_chunks[i].shape[0]
+        #         if pad_len > 0:
+        #             input_id_chunks[i] = torch.cat([
+        #                 input_id_chunks[i],torch.Tensor([0]*pad_len)
+        #             ])
+        #             mask_chunks[i] = torch.cat([
+        #                     mask_chunks[i],torch.Tensor([0]*pad_len)
+        #                 ])
+        #     # stack output
+        #     input_ids = torch.stack(input_id_chunks)
+        #     attention_mask = torch.stack(mask_chunks)
+
+        #     rtn_dict = {
+        #         'input_ids': input_ids.long(),
+        #         'attention_mask': attention_mask.long()
+        #     }
+        #     return rtn_dict
+        
+        # rtn_list = [dataset.get_hf_dataset().map(tokenize_function).select_columns(['input_ids', 'attention_mask']) for dataset in datasets]
+        # import itertools
+
+        # for d in rtn_list:
+        #     print(len(d['input_ids']))
+        #     print(type(d['input_ids']))
+        #     print(len(d['input_ids'][0]))
+        #     print(d['input_ids'][0])
+        #     print(type(d['input_ids'][0]))
+        #     print(type(d))
+        #     print(dir(d))
+
+        # for d in rtn_list:
+        #     # Flatten the nested lists using itertools.chain
+        #     input_ids = list(itertools.chain(*[chunk for chunk in d['input_ids']]))
+        #     attention_mask = list(itertools.chain(*[chunk for chunk in d['attention_mask']]))
+
+        #     d['input_ids'] = input_ids,  
+        #     d['attention_mask'] = attention_mask
+
+
+        # for d in rtn_list:
+        #     print(len(d['input_ids']))
+        #     print(type(d['input_ids']))
+        #     print(len(d['input_ids'][0]))
+        #     print(d['input_ids'][0])
+        #     print(type(d['input_ids'][0]))
+        #     print(type(d))
+        #     print(dir(d))
+
+        # return rtn_list
        
 
 
@@ -359,13 +374,11 @@ class LanguageModel:
 
         nlls = []  # negative log likelihoods
         ctr = 0  # Number of tokens viewed
-        # for txt in tqdm(data, desc="Compute PPL", disable=not verbose):
-        #     input_ids = torch.tensor(self._tokenizer.encode(txt, truncation=True)).unsqueeze(0).to(self.env_args.device)
-        #     target_ids = input_ids.clone() #TODO modify max_length in token
         for txt in tqdm(data, desc="Compute PPL", disable=not verbose):
-            encoded_input = self._tokenizer.encode(txt, truncation=True, max_length=max_length)
-            input_ids = torch.tensor(encoded_input).unsqueeze(0).to(self.env_args.device)
-            target_ids = input_ids.clone()
+            # input_ids = torch.tensor(self._tokenizer.encode(txt, truncation=True)).unsqueeze(0).to(self.env_args.device) #TODO modify max_length in token
+            input_ids = torch.tensor(self._tokenizer.encode(txt, truncation=True, max_length= max_length)).unsqueeze(0).to(self.env_args.device)
+            target_ids = input_ids.clone() 
+    
 
 
 
@@ -476,11 +489,21 @@ class LanguageModel:
 
         data_collator = DataCollatorForLanguageModeling(tokenizer=self._tokenizer, mlm=False)
 
-
-        print("Tokenizing Train and Eval Datasets ..")
-        eval_dataset = eval_dataset.shuffle().select(list(range(train_args.limit_eval_dataset)))
-        train_dataset, eval_dataset = self.tokenize_datasets([train_dataset, eval_dataset]) 
-        print("Done Tokenizing!")
+        # TODO add save/load feature
+        if train_args.load_dataset: # if using previously trained datasets
+            print("Loading Dre-processed Datasets")
+            train_dataset = load_from_disk(train_args.dataset_dir + "/train")
+            eval_dataset = load_from_disk(train_args.dataset_dir + "/eval")
+            print(f"Done Loading Datasets from: {train_args.dataset_dir}")
+        else: # else tokenize and save
+            print("Tokenizing Train and Eval Datasets ..")
+            eval_dataset = eval_dataset.shuffle().select(list(range(train_args.limit_eval_dataset)))
+            train_dataset, eval_dataset = self.tokenize_datasets([train_dataset, eval_dataset]) 
+            print("Done Tokenizing! Start Saving")
+            train_dataset.save_to_disk(train_args.dataset_dir + "/train")
+            eval_dataset.save_to_disk(train_args.dataset_dir + "/eval")
+            print(f'Done Saving in path: {train_args.dataset_dir}')
+            
 
 
         

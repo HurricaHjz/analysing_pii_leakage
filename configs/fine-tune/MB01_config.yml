@@ -13,6 +13,11 @@ trainer_args:
   gradient_accumulation_steps: 8
   per_device_train_batch_size: 2
   per_device_eval_batch_size: 2
+  # resume_from_checkpoint: True
+  output_dir: ./experiments/test_check
+  dataset_dir: ./experiments/dataset
+  load_dataset: False
+  
 
 model_args:
   architecture: google/bert_for_seq_generation_L-24_bbc_encoder

@@ -81,6 +81,21 @@ class TrainerArgs(TrainingArguments):
         }
     )
 
+    dataset_dir: str = field(
+        default="",
+        metadata={
+            "help": "Directory that stores the dataset to load/save from"
+        }
+    )
+
+    load_dataset: bool = field(
+        default=False,
+        metadata={
+            "help": "whether to use a pre-processed dataset"
+        }
+    )
+
+
     # Since transformers>=4.35.0 this defaults to True
     # Opacus GradSampleModule is not compatible with this
     save_safetensors: bool = field(
