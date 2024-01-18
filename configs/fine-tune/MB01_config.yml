@@ -16,6 +16,7 @@ trainer_args:
   # resume_from_checkpoint: True
   output_dir: ./experiments/test_check
   dataset_dir: ./experiments/dataset
+  # dataset_dir: ../pii_results/datasets/echr/small
   load_dataset: False
   
 

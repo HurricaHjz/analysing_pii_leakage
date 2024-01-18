@@ -96,9 +96,10 @@ class LanguageModel:
                 print(f"> Loading an uninitialized {self.model_args.architecture} model.")
             self._lm = model_cls(config=self.get_config())
             
-        ## version for bert --------- #TODO CHANGE FOR BERT, REMOVE PADDING TOKEN AND ADD IT MANUALLY
+        # version for bert --------- #TODO CHANGE FOR BERT, REMOVE PADDING TOKEN AND ADD IT MANUALLY
         self._tokenizer = tokenizer.from_pretrained(self.model_args.architecture,
                                                 use_fast=self.model_args.tokenizer_use_fast)
+        num_added_toks = self._tokenizer.add_special_tokens({'pad_token': '[PAD]'})
         
         # Resize token embeddings in case the tokenizer has been changed
         self._lm.resize_token_embeddings(len(self._tokenizer))
@@ -255,7 +256,7 @@ class LanguageModel:
                 attention_mask.extend(attention_mask_cks)
             
                 
-            print(f'len of the first chunk (should be 512): {len(input_ids[0])}')
+            # print(f'len of the first chunk (should be 512): {len(input_ids[0])}')
 
             # stack the two columns back as a dictionary for returning
             out_dict = {
