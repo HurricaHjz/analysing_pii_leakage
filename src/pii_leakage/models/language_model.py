@@ -175,7 +175,8 @@ class LanguageModel:
         )
 
         generated_texts: List[GeneratedText] = []
-        for text in self._tokenizer.batch_decode(out.sequences, skip_special_tokens=False):
+        # for text in self._tokenizer.batch_decode(out.sequences, skip_special_tokens=False): TODO set to true for skip special token
+        for text in self._tokenizer.batch_decode(out.sequences, skip_special_tokens=True):
             generated_texts.append(GeneratedText(text=text))
         return generated_texts
 
@@ -483,8 +484,8 @@ class LanguageModel:
         if extra_callbacks is None:
             extra_callbacks = []
 
-        extra_callbacks += [PrintSampleCallback(model=self, sampling_args=SamplingArgs(),
-                                                num_steps=train_args.callback_after_n_steps)]
+        # extra_callbacks += [PrintSampleCallback(model=self, sampling_args=SamplingArgs(),
+        #                                         num_steps=train_args.callback_after_n_steps)] TODO bert generation model cannot have sample callbacks
         extra_callbacks += [EvaluatePerplexityCallback(dataset=eval_dataset, model=self, prefix="Eval PPL",
                                                        num_steps=train_args.callback_after_n_steps)]
 
