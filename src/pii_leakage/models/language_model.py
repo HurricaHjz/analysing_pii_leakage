@@ -485,7 +485,7 @@ class LanguageModel:
             extra_callbacks = []
 
         # extra_callbacks += [PrintSampleCallback(model=self, sampling_args=SamplingArgs(),
-        #                                         num_steps=train_args.callback_after_n_steps)] TODO bert generation model cannot have sample callbacks
+        #                                         num_steps=train_args.callback_after_n_steps)] TODO bert generation model cannot have sample callbacks with empty input
         extra_callbacks += [EvaluatePerplexityCallback(dataset=eval_dataset, model=self, prefix="Eval PPL",
                                                        num_steps=train_args.callback_after_n_steps)]
 

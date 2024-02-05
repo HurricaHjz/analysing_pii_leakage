@@ -13,7 +13,7 @@ trainer_args:
   gradient_accumulation_steps: 8
   per_device_train_batch_size: 2
   per_device_eval_batch_size: 2
-  # resume_from_checkpoint: True
+  resume_from_checkpoint: True
   output_dir: ./experiments/test_check
   dataset_dir: ./experiments/dataset
   # dataset_dir: ../pii_results/datasets/echr/small
@@ -23,6 +23,7 @@ trainer_args:
 model_args:
   architecture: google/bert_for_seq_generation_L-24_bbc_encoder
   pre_trained: True   # Start from a pre-trained checkpoint
+  # model_ckpt: ./experiments/test_check/checkpoint-1500
 
 ner_args:
   ner: flair
