@@ -175,8 +175,8 @@ class LanguageModel:
         )
 
         generated_texts: List[GeneratedText] = []
-        # for text in self._tokenizer.batch_decode(out.sequences, skip_special_tokens=False): TODO set to true for skip special token
-        for text in self._tokenizer.batch_decode(out.sequences, skip_special_tokens=True):
+        for text in self._tokenizer.batch_decode(out.sequences, skip_special_tokens=False): #TODO set to true for skip special token
+        # for text in self._tokenizer.batch_decode(out.sequences, skip_special_tokens=True):
             generated_texts.append(GeneratedText(text=text))
         return generated_texts
 
@@ -192,8 +192,7 @@ class LanguageModel:
             [" "] * r if sampling_args.prompt is None or sampling_args.prompt.strip() == ""
             else [sampling_args.prompt] * r
         )
-
-        inputs = self._tokenizer(prompts, return_tensors="pt", padding=True, truncation=True)
+        inputs = self._tokenizer(prompts, return_tensors="pt", padding="max_length", max_length=512) # TODO change padding max length to 512
         input_ids = inputs['input_ids']
         attention_mask = inputs['attention_mask']
 
@@ -287,80 +286,6 @@ class LanguageModel:
         return rtn_list
        
 
-
-        # def tokenize_function(txt):
-
-        #     # define the chunk size and return columns
-        #     chunk_size = 512 
-        #     input_ids = []
-        #     attention_mask = []
-
-        #     # tokenize dataset
-        #     tokens = self._tokenizer(txt[column_name], return_tensors='pt')
-
-        #     # split sequence
-        #     input_id_chunks = list(tokens['input_ids'][0].split(510))
-        #     mask_chunks = list(tokens['attention_mask'][0].split(510))
-             
-        #     for i in range(len(input_id_chunks)):
-        #         # add special tokens
-        #         input_id_chunks[i] = torch.cat([
-        #             torch.Tensor([101]), input_id_chunks[i],torch.Tensor([102])
-        #         ])
-        #         mask_chunks[i] = torch.cat([
-        #             torch.Tensor([1]), mask_chunks[i],torch.Tensor([1])
-        #         ])
-        #         # do padding 
-        #         pad_len = chunk_size - input_id_chunks[i].shape[0]
-        #         if pad_len > 0:
-        #             input_id_chunks[i] = torch.cat([
-        #                 input_id_chunks[i],torch.Tensor([0]*pad_len)
-        #             ])
-        #             mask_chunks[i] = torch.cat([
-        #                     mask_chunks[i],torch.Tensor([0]*pad_len)
-        #                 ])
-        #     # stack output
-        #     input_ids = torch.stack(input_id_chunks)
-        #     attention_mask = torch.stack(mask_chunks)
-
-        #     rtn_dict = {
-        #         'input_ids': input_ids.long(),
-        #         'attention_mask': attention_mask.long()
-        #     }
-        #     return rtn_dict
-        
-        # rtn_list = [dataset.get_hf_dataset().map(tokenize_function).select_columns(['input_ids', 'attention_mask']) for dataset in datasets]
-        # import itertools
-
-        # for d in rtn_list:
-        #     print(len(d['input_ids']))
-        #     print(type(d['input_ids']))
-        #     print(len(d['input_ids'][0]))
-        #     print(d['input_ids'][0])
-        #     print(type(d['input_ids'][0]))
-        #     print(type(d))
-        #     print(dir(d))
-
-        # for d in rtn_list:
-        #     # Flatten the nested lists using itertools.chain
-        #     input_ids = list(itertools.chain(*[chunk for chunk in d['input_ids']]))
-        #     attention_mask = list(itertools.chain(*[chunk for chunk in d['attention_mask']]))
-
-        #     d['input_ids'] = input_ids,  
-        #     d['attention_mask'] = attention_mask
-
-
-        # for d in rtn_list:
-        #     print(len(d['input_ids']))
-        #     print(type(d['input_ids']))
-        #     print(len(d['input_ids'][0]))
-        #     print(d['input_ids'][0])
-        #     print(type(d['input_ids'][0]))
-        #     print(type(d))
-        #     print(dir(d))
-
-        # return rtn_list
-       
 
 
 
