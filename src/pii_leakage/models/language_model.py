@@ -97,6 +97,7 @@ class LanguageModel:
             self._lm = model_cls(config=self.get_config())
             
         # version for bert --------- #TODO CHANGE FOR BERT, REMOVE PADDING TOKEN AND ADD IT MANUALLY
+        self._lm.
         self._tokenizer = tokenizer.from_pretrained(self.model_args.architecture,
                                                 use_fast=self.model_args.tokenizer_use_fast)
         num_added_toks = self._tokenizer.add_special_tokens({'pad_token': '[PAD]'})
