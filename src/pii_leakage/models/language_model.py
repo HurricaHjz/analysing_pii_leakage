@@ -9,7 +9,7 @@ import dp_transformers
 import numpy as np
 import torch
 from tqdm import tqdm
-from transformers import DataCollatorForLanguageModeling, Trainer, AutoTokenizer, AutoModelForCausalLM, AutoModelForSequenceClassification, \
+from transformers import DataCollatorForLanguageModeling, Trainer, AutoTokenizer, AutoModelForCausalLM, AutoModelForSequenceClassification, BertGenerationConfig, BertGenerationDecoder, \
     TrainerCallback
 
 from ..arguments.env_args import EnvArgs
@@ -73,7 +73,7 @@ class LanguageModel:
     def get_config(self):
         raise NotImplementedError
 
-    def load(self, verbose: bool = False) -> 'LanguageModel':
+    def load(self, verbose: bool = True) -> 'LanguageModel':
         """ Loads the model and tokenizer from the checkpoint.
         """
         model_cls, tokenizer = AutoModelForCausalLM, AutoTokenizer 
@@ -89,29 +89,43 @@ class LanguageModel:
         elif self.model_args.pre_trained:  # if no checkpoint is provided, load a public, pre-trained model.
             if verbose:
                 print(f"> Loading a public, pre-trained {self.model_args.architecture} model.")
-            self._lm = model_cls.from_pretrained(self.model_args.architecture, return_dict=True).eval()
+            config = BertGenerationConfig.from_pretrained("google/bert_for_seq_generation_L-24_bbc_encoder")
+            config.is_decoder = True #TODO change structure to decoder
+            config.return_dict = True
+            self._lm = BertGenerationDecoder.from_pretrained(
+                "google/bert_for_seq_generation_L-24_bbc_encoder", config=config
+            )
+            # tok = tokenizer.from_pretrained(self.model_args.architecture,
+            #                                        use_fast=self.model_args.tokenizer_use_fast)
+            # inputs = tok("Hello, my dog is cute", return_token_type_ids=False, return_tensors="pt")
+            # print(f'test input {inputs}')
+            # outputs = self._lm(**inputs)
+
+            # prediction_logits = outputs.logits
+            # print(f'test result logits {prediction_logits}')
         else:  # no checkpoint and no pre-trained model, hence randomly initialize model's parameters.
             if verbose:
                 print(f"> Loading an uninitialized {self.model_args.architecture} model.")
             self._lm = model_cls(config=self.get_config())
             
-        # ## version for bert --------- #TODO active when using bert
+        ## version for bert --------- #TODO active when using bert
+        self._tokenizer = tokenizer.from_pretrained(self.model_args.architecture,
+                                                   use_fast=self.model_args.tokenizer_use_fast)
+        num_added_toks = self._tokenizer.add_special_tokens({'pad_token': '[PAD]'})
+        
+        # Resize token embeddings in case the tokenizer has been changed
+        self._lm.resize_token_embeddings(len(self._tokenizer))
+
+        # # version for gpt 2 ---------
         # self._tokenizer = tokenizer.from_pretrained(self.model_args.architecture,
         #                                             use_fast=self.model_args.tokenizer_use_fast)
         # num_added_toks = self._tokenizer.add_special_tokens({'pad_token': '[PAD]'})
-
+        # mean_tok_emb = self._lm.transformer.wte.weight.data.mean(dim=0)  
         # self._lm.resize_token_embeddings(len(self._tokenizer))
 
-        # version for gpt 2 ---------
-        self._tokenizer = tokenizer.from_pretrained(self.model_args.architecture,
-                                                    use_fast=self.model_args.tokenizer_use_fast)
-        num_added_toks = self._tokenizer.add_special_tokens({'pad_token': '[PAD]'})
-        mean_tok_emb = self._lm.transformer.wte.weight.data.mean(dim=0)  
-        self._lm.resize_token_embeddings(len(self._tokenizer))
-
-        # Initialize the newly-added token embedding to the mean of all token embeddings 
-        for i in range(num_added_toks):
-            self._lm.transformer.wte.weight.data[-(i + 1), :] = mean_tok_emb
+        # # Initialize the newly-added token embedding to the mean of all token embeddings 
+        # for i in range(num_added_toks):
+        #     self._lm.transformer.wte.weight.data[-(i + 1), :] = mean_tok_emb
 
         self._lm.to(self.env_args.device)
         return self
@@ -142,9 +156,9 @@ class LanguageModel:
         """ Predicts the top-1 most probable next tokens. """
         return self.generate(sampling_args)[0]
 
-    def print_sample(self, prompt=None):
+    def print_sample(self, prompt="HE used to be a"):
         self._lm.eval()
-        data = self.generate(SamplingArgs(N=1, prompt=prompt, generate_verbose=False, seq_len=64))
+        data = self.generate(SamplingArgs(N=1, prompt=prompt, generate_verbose=True, seq_len=64))
         print_highlighted(data[0].text)
         return data[0].text
 
@@ -158,7 +172,8 @@ class LanguageModel:
         out = self._lm.generate(
             input_ids=input_ids.to(self.env_args.device),
             attention_mask=attention_mask.to(self.env_args.device),
-            max_length=min(self.n_positions, input_len + sampling_args.seq_len),
+            # max_length=min(self.n_positions, input_len + sampling_args.seq_len) TODO CHANGE MAX LENGTH TO STATIC 512
+            max_length = 512,
             do_sample=sampling_args.do_sample,
             top_k=sampling_args.top_k,
             top_p=sampling_args.top_p,
@@ -167,7 +182,7 @@ class LanguageModel:
         )
 
         generated_texts: List[GeneratedText] = []
-        for text in self._tokenizer.batch_decode(out.sequences, skip_special_tokens=False):
+        for text in self._tokenizer.batch_decode(out.sequences, skip_special_tokens=True):
             generated_texts.append(GeneratedText(text=text))
         return generated_texts
 
@@ -184,7 +199,7 @@ class LanguageModel:
             else [sampling_args.prompt] * r
         )
 
-        inputs = self._tokenizer(prompts, return_tensors="pt", padding=True, truncation=True)
+        inputs = self._tokenizer(prompts, return_tensors="pt", padding="max_length", max_length=512) # TODO change padding max length to 512
         input_ids = inputs['input_ids']
         attention_mask = inputs['attention_mask']
 
