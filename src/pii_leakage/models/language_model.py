@@ -95,7 +95,7 @@ class LanguageModel:
             config.return_dict = True
             self._lm = BertGenerationDecoder.from_pretrained(
                 "google/bert_for_seq_generation_L-24_bbc_encoder", config=config
-            )
+            ).eval()
         else:  # no checkpoint and no pre-trained model, hence randomly initialize model's parameters.
             if verbose:
                 print(f"> Loading an uninitialized {self.model_args.architecture} model.")
@@ -243,7 +243,7 @@ class LanguageModel:
                 input_id_s = tokens['input_ids'][k]
                 attention_mask_s = tokens['attention_mask'][k]
 
-                # add bos token at beginning of every sequence
+                # add bos token at beginning of every sequence before chunkation
                 input_id_s.insert(0, self._tokenizer.bos_token_id)
                 attention_mask_s.insert(0, 1)
             
