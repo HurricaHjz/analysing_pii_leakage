@@ -166,7 +166,7 @@ class LanguageModel:
             input_ids=input_ids.to(self.env_args.device),
             attention_mask=attention_mask.to(self.env_args.device),
             # max_length=min(self.n_positions, input_len + sampling_args.seq_len) TODO CHANGE MAX LENGTH TO STATIC 512 + seq len as input is always 512
-            max_length = (input_len + sampling_args.seq_len),
+            max_length = input_len + sampling_args.seq_len,
             do_sample=sampling_args.do_sample,
             top_k=sampling_args.top_k,
             top_p=sampling_args.top_p,
