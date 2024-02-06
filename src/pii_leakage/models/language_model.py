@@ -89,20 +89,13 @@ class LanguageModel:
         elif self.model_args.pre_trained:  # if no checkpoint is provided, load a public, pre-trained model.
             if verbose:
                 print(f"> Loading a public, pre-trained {self.model_args.architecture} model.")
+            # self._lm = model_cls.from_pretrained(self.model_args.architecture, return_dict=True).eval() #TODO change structure to decoder
             config = BertGenerationConfig.from_pretrained("google/bert_for_seq_generation_L-24_bbc_encoder")
-            config.is_decoder = True #TODO change structure to decoder
+            config.is_decoder = True 
             config.return_dict = True
             self._lm = BertGenerationDecoder.from_pretrained(
                 "google/bert_for_seq_generation_L-24_bbc_encoder", config=config
             )
-            # tok = tokenizer.from_pretrained(self.model_args.architecture,
-            #                                        use_fast=self.model_args.tokenizer_use_fast)
-            # inputs = tok("Hello, my dog is cute", return_token_type_ids=False, return_tensors="pt")
-            # print(f'test input {inputs}')
-            # outputs = self._lm(**inputs)
-
-            # prediction_logits = outputs.logits
-            # print(f'test result logits {prediction_logits}')
         else:  # no checkpoint and no pre-trained model, hence randomly initialize model's parameters.
             if verbose:
                 print(f"> Loading an uninitialized {self.model_args.architecture} model.")
@@ -111,7 +104,7 @@ class LanguageModel:
         ## version for bert --------- #TODO active when using bert
         self._tokenizer = tokenizer.from_pretrained(self.model_args.architecture,
                                                    use_fast=self.model_args.tokenizer_use_fast)
-        num_added_toks = self._tokenizer.add_special_tokens({'pad_token': '[PAD]'})
+        # num_added_toks = self._tokenizer.add_special_tokens({'pad_token': '[PAD]'})
         
         # Resize token embeddings in case the tokenizer has been changed
         self._lm.resize_token_embeddings(len(self._tokenizer))
@@ -156,7 +149,7 @@ class LanguageModel:
         """ Predicts the top-1 most probable next tokens. """
         return self.generate(sampling_args)[0]
 
-    def print_sample(self, prompt="HE used to be a"):
+    def print_sample(self, prompt=None):
         self._lm.eval()
         data = self.generate(SamplingArgs(N=1, prompt=prompt, generate_verbose=True, seq_len=64))
         print_highlighted(data[0].text)
@@ -172,8 +165,8 @@ class LanguageModel:
         out = self._lm.generate(
             input_ids=input_ids.to(self.env_args.device),
             attention_mask=attention_mask.to(self.env_args.device),
-            # max_length=min(self.n_positions, input_len + sampling_args.seq_len) TODO CHANGE MAX LENGTH TO STATIC 512
-            max_length = 512,
+            # max_length=min(self.n_positions, input_len + sampling_args.seq_len) TODO CHANGE MAX LENGTH TO STATIC 512 + seq len as input is always 512
+            max_length = (input_len + sampling_args.seq_len),
             do_sample=sampling_args.do_sample,
             top_k=sampling_args.top_k,
             top_p=sampling_args.top_p,
@@ -182,7 +175,8 @@ class LanguageModel:
         )
 
         generated_texts: List[GeneratedText] = []
-        for text in self._tokenizer.batch_decode(out.sequences, skip_special_tokens=True):
+        for text in self._tokenizer.batch_decode(out.sequences, skip_special_tokens=False): #TODO set to true for skip special token
+        # for text in self._tokenizer.batch_decode(out.sequences, skip_special_tokens=True):
             generated_texts.append(GeneratedText(text=text))
         return generated_texts
 
@@ -199,9 +193,13 @@ class LanguageModel:
             else [sampling_args.prompt] * r
         )
 
-        inputs = self._tokenizer(prompts, return_tensors="pt", padding="max_length", max_length=512) # TODO change padding max length to 512
-        input_ids = inputs['input_ids']
+        inputs = self._tokenizer(prompts, return_tensors="pt", padding=True, truncation=True) # TODO change padding max length to 512
+        # inputs = self._tokenizer(prompts, return_tensors="pt", padding="max_length", max_length=512,truncation=True) 
+        
+        input_ids = inputs['input_ids'].unsqueeze(0)
         attention_mask = inputs['attention_mask']
+
+        print(f'input ids: {input_ids}, input shape: {input_ids.shape}')
 
         generated_data: List[GeneratedText] = []
         num_batches = int(np.ceil(sampling_args.N / self.env_args.eval_batch_size))
@@ -216,11 +214,89 @@ class LanguageModel:
 
     def tokenize_datasets(self, datasets: List[RealDataset], column_name="text") -> List:
         """ Tokenizes the 'text' column of a list of dataset using this model's tokenizer """
-        tokenize_function = lambda x: self._tokenizer(x[column_name], truncation=True)
-        return [dataset.get_hf_dataset().map(tokenize_function, batched=True).select_columns(['input_ids', 'attention_mask']) for dataset in datasets]
+        # tokenize_function = lambda x: self._tokenizer(x[column_name], truncation=True, max_length=512) # TODO add chunk during tokenization
+        # return [dataset.get_hf_dataset().map(tokenize_function, batched=True).select_columns(['input_ids', 'attention_mask']) for dataset in datasets]
+        
+        def tokenize_function(txt):
 
-    def perplexity(self, data: Union[list, str], offset=0, max_length=0, apply_exp=True, verbose=True,
-                   return_as_list: bool = False) -> float:
+            # define the chunk size and return columns
+            chunk_size = 512 
+            input_ids = []
+            attention_mask = []
+
+            # tokenize dataset
+            tokens = self._tokenizer(txt[column_name])
+
+            # print(f'tokens input ids: {tokens["input_ids"][0]}')
+            # print(f'tokens attention masks: {tokens["attention_mask"][0]}')
+            # print(f'bos token id {self._tokenizer.bos_token_id}, eos {self._tokenizer.eos_token_id}')
+
+            # loop for every sentence within the dataset
+            for k in range(len(tokens["input_ids"])):
+                # split the sentence into shorter ones with maximum length 512-2
+                # load sentence
+                split_size = chunk_size
+                input_id_s = tokens['input_ids'][k]
+                attention_mask_s = tokens['attention_mask'][k]
+            
+                
+                # split sentence
+                input_id_cks = [input_id_s[i:i + split_size] for i in range(0, len(input_id_s), split_size)]
+                attention_mask_cks = [attention_mask_s[i:i + split_size] for i in range(0, len(attention_mask_s), split_size)]
+             
+                # # add paddings, no special tokens
+                # for i in range(len(input_id_cks)):
+                #     # add CLS and SEP to seperate each chunk
+                #     input_id_cks[i].insert(0, 101)
+                #     input_id_cks[i].append(102)
+                 
+                #     # add attention mask to show they are valid special tokens
+                #     attention_mask_cks[i].insert(0, 1)
+                #     attention_mask_cks[i].append(1)
+                    
+                #     # add paddings
+                #     pad_len = chunk_size - len(input_id_cks[i])
+                #     if pad_len > 0:
+                #         input_id_cks[i].extend([0]*pad_len)
+                #         attention_mask_cks[i].extend([0]*pad_len)
+
+                # add the chunks back to the output list
+                input_ids.extend(input_id_cks)
+                attention_mask.extend(attention_mask_cks)
+            
+                
+            # print(f'len of the first chunk (should be 512): {len(input_ids[0])}')
+
+            # stack the two columns back as a dictionary for returning
+            out_dict = {
+                'chunk_ids': input_ids,
+                'chunk_mask': attention_mask
+            }
+
+            return out_dict
+        
+        # map the tokenize function, remove old columns and change name for new columns
+        rtn_list = []
+        for dataset in datasets:
+            d = dataset.get_hf_dataset().map(tokenize_function, batched = True, remove_columns = dataset.get_hf_dataset().column_names)
+            d = d.rename_column('chunk_ids', 'input_ids')
+            d = d.rename_column('chunk_mask', 'attention_mask')
+            rtn_list.append(d)
+
+        # for d in rtn_list:
+        #     print(len(d['input_ids']))
+        #     print(type(d['input_ids']))
+        #     print(len(d['input_ids'][0]))
+        #     print(d['input_ids'][0])
+        #     print(type(d['input_ids'][0]))
+        #     print(type(d))
+        #     print(dir(d))
+
+        return rtn_list
+       
+
+    def perplexity(self, data: Union[list, str], offset=0, max_length=512, apply_exp=True, verbose=True,
+                   return_as_list: bool = False) -> float: #TODO change max length to 512
         """ Compute the perplexity of the model on a string.
         """
         original_mode = self._lm.training
@@ -232,7 +308,8 @@ class LanguageModel:
         nlls = []  # negative log likelihoods
         ctr = 0  # Number of tokens viewed
         for txt in tqdm(data, desc="Compute PPL", disable=not verbose):
-            input_ids = torch.tensor(self._tokenizer.encode(txt, truncation=True)).unsqueeze(0).to(self.env_args.device)
+           # input_ids = torch.tensor(self._tokenizer.encode(txt, truncation=True)).unsqueeze(0).to(self.env_args.device) #TODO modify max_length in token
+            input_ids = torch.tensor(self._tokenizer.encode(txt, truncation=True, max_length= max_length)).unsqueeze(0).to(self.env_args.device)
             target_ids = input_ids.clone()
 
             if offset > 0:  # ignore everything up to the offset
@@ -330,8 +407,8 @@ class LanguageModel:
         if extra_callbacks is None:
             extra_callbacks = []
 
-        extra_callbacks += [PrintSampleCallback(model=self, sampling_args=SamplingArgs(),
-                                                num_steps=train_args.callback_after_n_steps)]
+        # extra_callbacks += [PrintSampleCallback(model=self, sampling_args=SamplingArgs(),
+        #                                         num_steps=train_args.callback_after_n_steps)] TODO bert generation model cannot have sample callbacks with empty input
         extra_callbacks += [EvaluatePerplexityCallback(dataset=eval_dataset, model=self, prefix="Eval PPL",
                                                        num_steps=train_args.callback_after_n_steps)]
 
