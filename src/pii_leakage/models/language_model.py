@@ -97,7 +97,6 @@ class LanguageModel:
             self._lm = model_cls(config=self.get_config())
             
         # version for bert --------- #TODO CHANGE FOR BERT, REMOVE PADDING TOKEN AND ADD IT MANUALLY
-        self._lm.
         self._tokenizer = tokenizer.from_pretrained(self.model_args.architecture,
                                                 use_fast=self.model_args.tokenizer_use_fast)
         num_added_toks = self._tokenizer.add_special_tokens({'pad_token': '[PAD]'})
@@ -166,8 +165,8 @@ class LanguageModel:
         out = self._lm.generate(
             input_ids=input_ids.to(self.env_args.device),
             attention_mask=attention_mask.to(self.env_args.device),
-            # max_length=min(self.n_positions, input_len + sampling_args.seq_len) TODO CHANGE MAX LENGTH TO STATIC 512
-            max_length = 512,
+            # max_length=min(self.n_positions, input_len + sampling_args.seq_len) TODO remove n_pos
+            max_length = input_len+sampling_args.seq_len,
             do_sample=sampling_args.do_sample,
             top_k=sampling_args.top_k,
             top_p=sampling_args.top_p,
