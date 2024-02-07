@@ -1,0 +1,25 @@
+# Evaluate PII Inference
+dataset_args:
+  dataset_path: ../src/pii_leakage/extern/echr
+  dataset_mode: undefended
+  sample_duplication_rate: 1
+
+attack_args:
+  attack_name: perplexity_inference
+  sampling_rate: 100
+  seq_len: 128
+
+eval_args:
+  num_candidates: 500
+
+model_args:
+  architecture: google/bert_for_seq_generation_L-24_bbc_encoder
+  pre_trained: True   # Start from a pre-trained checkpoint
+  model_ckpt: ../pii_results/MB02
+
+ner_args:
+  ner: flair
+  ner_model: flair/ner-english-ontonotes-large
+  anon_token: <MASK>
+  anonymize: False
+  tag_n_batches: 10_000
