@@ -10,7 +10,7 @@ import numpy as np
 import torch
 from tqdm import tqdm
 from transformers import DataCollatorForLanguageModeling, Trainer, AutoTokenizer, AutoModelForCausalLM, AutoModelForSequenceClassification, BertGenerationConfig, BertGenerationDecoder, \
-    TrainerCallback
+    TrainerCallback, AutoModelForMaskedLM
 
 from ..arguments.env_args import EnvArgs
 from ..arguments.model_args import ModelArgs
@@ -76,7 +76,8 @@ class LanguageModel:
     def load(self, verbose: bool = True) -> 'LanguageModel':
         """ Loads the model and tokenizer from the checkpoint.
         """
-        model_cls, tokenizer = AutoModelForCausalLM, AutoTokenizer 
+        # model_cls, tokenizer = AutoModelForCausalLM, AutoTokenizer  # TODO change to masked LM instaed of causal lm
+        model_cls, tokenizer = AutoModelForMaskedLM, AutoTokenizer 
 
         if self.model_args.model_ckpt:  # always load the checkpoint if provided.
             if verbose:
@@ -89,13 +90,7 @@ class LanguageModel:
         elif self.model_args.pre_trained:  # if no checkpoint is provided, load a public, pre-trained model.
             if verbose:
                 print(f"> Loading a public, pre-trained {self.model_args.architecture} model.")
-            # self._lm = model_cls.from_pretrained(self.model_args.architecture, return_dict=True).eval() #TODO change structure to decoder
-            config = BertGenerationConfig.from_pretrained("google/bert_for_seq_generation_L-24_bbc_encoder")
-            config.is_decoder = True 
-            config.return_dict = True
-            self._lm = BertGenerationDecoder.from_pretrained(
-                "google/bert_for_seq_generation_L-24_bbc_encoder", config=config
-            ).eval()
+            self._lm = model_cls.from_pretrained(self.model_args.architecture, return_dict=True).eval()
         else:  # no checkpoint and no pre-trained model, hence randomly initialize model's parameters.
             if verbose:
                 print(f"> Loading an uninitialized {self.model_args.architecture} model.")
@@ -165,8 +160,7 @@ class LanguageModel:
         out = self._lm.generate(
             input_ids=input_ids.to(self.env_args.device),
             attention_mask=attention_mask.to(self.env_args.device),
-            # max_length=min(self.n_positions, input_len + sampling_args.seq_len) TODO CHANGE MAX LENGTH TO STATIC 512 + seq len as input is always 512
-            max_length = input_len + sampling_args.seq_len,
+            max_length=min(self.n_positions, input_len + sampling_args.seq_len),
             do_sample=sampling_args.do_sample,
             top_k=sampling_args.top_k,
             top_p=sampling_args.top_p,
@@ -175,8 +169,7 @@ class LanguageModel:
         )
 
         generated_texts: List[GeneratedText] = []
-        # for text in self._tokenizer.batch_decode(out.sequences, skip_special_tokens=False): #TODO set to true for skip special token
-        for text in self._tokenizer.batch_decode(out.sequences, skip_special_tokens=True):
+        for text in self._tokenizer.batch_decode(out.sequences, skip_special_tokens=False): 
             generated_texts.append(GeneratedText(text=text))
         return generated_texts
 
@@ -189,13 +182,11 @@ class LanguageModel:
 
         # Encode the input prompt
         prompts: List[str] = (
-            # [" "] * r if sampling_args.prompt is None or sampling_args.prompt.strip() == ""
-            [self._tokenizer.bos_token] * r if sampling_args.prompt is None or sampling_args.prompt.strip() == "" # TODO use bos token instead of " " for bert generation decoder
+            [" "] * r if sampling_args.prompt is None or sampling_args.prompt.strip() == ""
             else [sampling_args.prompt] * r
         )
 
-        inputs = self._tokenizer(prompts, return_tensors="pt", padding=True, truncation=True) # TODO change padding max length to 512
-        # inputs = self._tokenizer(prompts, return_tensors="pt", padding="max_length", max_length=512,truncation=True) 
+        inputs = self._tokenizer(prompts, return_tensors="pt", padding="max_length", max_length=512,truncation=True) 
         
         input_ids = inputs['input_ids']
         attention_mask = inputs['attention_mask']
@@ -218,7 +209,7 @@ class LanguageModel:
 
     def tokenize_datasets(self, datasets: List[RealDataset], column_name="text") -> List:
         """ Tokenizes the 'text' column of a list of dataset using this model's tokenizer """
-        # tokenize_function = lambda x: self._tokenizer(x[column_name], truncation=True, max_length=512) # TODO add chunk and special starting token during tokenization
+        # tokenize_function = lambda x: self._tokenizer(x[column_name], truncation=True, max_length=512) # TODO add chunk and special starting/ending token during tokenization
         # return [dataset.get_hf_dataset().map(tokenize_function, batched=True).select_columns(['input_ids', 'attention_mask']) for dataset in datasets]
         
         def tokenize_function(txt):
@@ -243,9 +234,11 @@ class LanguageModel:
                 input_id_s = tokens['input_ids'][k]
                 attention_mask_s = tokens['attention_mask'][k]
 
-                # add bos token at beginning of every sequence before chunkation
+                # add bos and eos token at beginning and end of every sequence before chunkation
                 input_id_s.insert(0, self._tokenizer.bos_token_id)
+                input_id_s.append(self._tokenizer.eos_token_id)
                 attention_mask_s.insert(0, 1)
+                attention_mask_s.append(1)
             
                 
                 # split sentence
@@ -302,8 +295,8 @@ class LanguageModel:
        
 
     def perplexity(self, data: Union[list, str], offset=0, max_length=512, apply_exp=True, verbose=True,
-                   return_as_list: bool = False) -> float: #TODO change max length to 512
-        """ Compute the perplexity of the model on a string.
+                   return_as_list: bool = False) -> float: #TODO change max length to 512 and calculate ppl for masked language modelling (use 10% of token as default)
+        """ Compute the perplexity of the model on a string for Masked Language Modeling.
         """
         original_mode = self._lm.training
         self._lm.eval()
@@ -312,38 +305,82 @@ class LanguageModel:
             data = [data]
 
         nlls = []  # negative log likelihoods
-        ctr = 0  # Number of tokens viewed
         for txt in tqdm(data, desc="Compute PPL", disable=not verbose):
-           # input_ids = torch.tensor(self._tokenizer.encode(txt, truncation=True)).unsqueeze(0).to(self.env_args.device) #TODO modify max_length in token
-            input_ids = torch.tensor(self._tokenizer.encode(txt, truncation=True, max_length= max_length)).unsqueeze(0).to(self.env_args.device)
+            # Encode and prepare masked tokens
+            input_ids = self._tokenizer.encode(txt, truncation=True, max_length=max_length, return_tensors="pt")
+            input_ids = input_ids.to(self.env_args.device)
             target_ids = input_ids.clone()
 
             if offset > 0:  # ignore everything up to the offset
                 target_ids[:, :offset] = -100
-
-            tgt_len = (target_ids.size(1) - offset)
             if max_length > 0:  # ignore everything except offset:offset+max_length
                 target_ids[:, offset + max_length:] = -100
-                tgt_len = max_length
+                
+            # Randomly mask tokens in the input_ids
+            mask_arr = torch.full(input_ids.shape, False)
+            num_masks = max(1, max_length // 10)  # Arbitrary choice: mask ~10% of tokens, minimum to be one
+            mask_positions = torch.randperm(input_ids.size(1))[:num_masks]
+            mask_arr[:, mask_positions] = True
+            input_ids[mask_arr] = self._tokenizer.mask_token_id
 
             with torch.no_grad():
-                outputs = self._lm(input_ids, labels=target_ids)
-            loss, logits = outputs[:2]
-            if return_as_list:
-                nlls.append(loss.cpu().detach())
-            else:
-                nlls.append(loss.cpu().detach())
-                ctr += tgt_len
+                outputs = self._lm(input_ids=input_ids, labels=target_ids)
+            loss = outputs.loss
+
+            nlls.append(loss.cpu().detach())
 
         self._lm.training = original_mode
         if return_as_list:
             if apply_exp:
-                return torch.exp(torch.stack(nlls))
-            return torch.stack(nlls, 0)
+                return [torch.exp(nll) for nll in nlls]
+            return nlls
 
+        mean_nll = torch.stack(nlls).mean()
         if apply_exp:
-            return float(torch.exp(torch.stack(nlls).mean()).item())
-        return float(torch.stack(nlls).mean().item())
+            return float(torch.exp(mean_nll).item())
+        return float(mean_nll.item())
+        # """ Compute the perplexity of the model on a string.
+        # """
+        # original_mode = self._lm.training
+        # self._lm.eval()
+
+        # if isinstance(data, str):  # always consider lists as input
+        #     data = [data]
+
+        # nlls = []  # negative log likelihoods
+        # ctr = 0  # Number of tokens viewed
+        # for txt in tqdm(data, desc="Compute PPL", disable=not verbose):
+        #    # input_ids = torch.tensor(self._tokenizer.encode(txt, truncation=True)).unsqueeze(0).to(self.env_args.device
+        #     input_ids = torch.tensor(self._tokenizer.encode(txt, truncation=True, max_length= max_length)).unsqueeze(0).to(self.env_args.device)
+            # target_ids = input_ids.clone()
+
+            # if offset > 0:  # ignore everything up to the offset
+            #     target_ids[:, :offset] = -100
+
+            # tgt_len = (target_ids.size(1) - offset)
+            # if max_length > 0:  # ignore everything except offset:offset+max_length
+            #     target_ids[:, offset + max_length:] = -100
+            #     tgt_len = max_length
+
+        #     with torch.no_grad():
+        #         outputs = self._lm(input_ids, labels=target_ids)
+        #     loss, logits = outputs[:2]
+        #     if return_as_list:
+        #         nlls.append(loss.cpu().detach())
+        #     else:
+        #         nlls.append(loss.cpu().detach())
+        #         ctr += tgt_len
+
+        # self._lm.training = original_mode
+        # if return_as_list:
+        #     if apply_exp:
+        #         return torch.exp(torch.stack(nlls))
+        #     return torch.stack(nlls, 0)
+
+        # if apply_exp:
+        #     return float(torch.exp(torch.stack(nlls).mean()).item())
+        # return float(torch.stack(nlls).mean().item())
+
 
     def _fine_tune_dp(self,
                       train_dataset: RealDataset,
@@ -413,12 +450,13 @@ class LanguageModel:
         if extra_callbacks is None:
             extra_callbacks = []
 
-        extra_callbacks += [PrintSampleCallback(model=self, sampling_args=SamplingArgs(),
-                                                num_steps=train_args.callback_after_n_steps)] 
+        # extra_callbacks += [PrintSampleCallback(model=self, sampling_args=SamplingArgs(),
+        #                                         num_steps=train_args.callback_after_n_steps)] # TODO remove sample generation
         extra_callbacks += [EvaluatePerplexityCallback(dataset=eval_dataset, model=self, prefix="Eval PPL",
                                                        num_steps=train_args.callback_after_n_steps)]
 
-        data_collator = DataCollatorForLanguageModeling(tokenizer=self._tokenizer, mlm=False)
+        # data_collator = DataCollatorForLanguageModeling(tokenizer=self._tokenizer, mlm=False)
+        data_collator = DataCollatorForLanguageModeling(tokenizer=self._tokenizer) # TODO change data collector to default mlm setting
 
         print("Tokenizing Train and Eval Datasets ..")
         eval_dataset = eval_dataset.shuffle().select(list(range(train_args.limit_eval_dataset)))
