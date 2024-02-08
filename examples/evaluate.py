@@ -119,11 +119,13 @@ def evaluate(model_args: ModelArgs,
 
                 # 5. Run the reconstruction attack
                 result = attack.attack(lm, target_sequence=target_sequence, pii_candidates=candidate_pii, verbose=False)
-                predicted_target_pii = result[min(result.keys())]
+                # predicted_target_pii = result[min(result.keys())] # TODO change result to single val
+                predicted_target_pii = result
 
                 # 6. Evaluate baseline leakage
                 baseline_result = attack.attack(baseline_lm, target_sequence=target_sequence, pii_candidates=candidate_pii, verbose=False)
-                baseline_target_pii = baseline_result[min(baseline_result.keys())]
+                # baseline_target_pii = baseline_result[min(baseline_result.keys())] # TODO change result to single val
+                baseline_target_pii  = baseline_result
 
                 if baseline_target_pii == predicted_target_pii:
                     # Baseline leakage because public model has the same prediction. Skip

@@ -44,9 +44,10 @@ def reconstruct_pii(model_args: ModelArgs,
     lm: LanguageModel = ModelFactory.from_model_args(model_args, env_args=env_args).load(verbose=True)
 
     attack: PerplexityReconstructionAttack = AttackFactory.from_attack_args(attack_args, ner_args=ner_args, env_args=env_args)
-    results: dict = attack.attack(lm, verbose=True)
+    result = attack.attack(lm, verbose=True)
 
-    target_pii = results[min(results, key=results.get)]
+    # target_pii = results[min(results, key=results.get)]
+    target_pii = result # TODO change result to single value instead of dict
     full_sequence = attack_args.target_sequence.replace("<T-MASK>", f"{bcolors.OKGREEN}{target_pii}{bcolors.ENDC}")
 
     print_separator()
