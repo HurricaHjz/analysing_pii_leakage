@@ -74,7 +74,7 @@ def fine_tune(model_args: ModelArgs,
     lm.fine_tune(train_dataset, eval_dataset, train_args, privacy_args)
 
     # -- Print using the LM
-    pprint(lm.generate(SamplingArgs(N=1)))
+    # pprint(lm.generate(SamplingArgs(N=1)))
 
 
 # ----------------------------------------------------------------------------

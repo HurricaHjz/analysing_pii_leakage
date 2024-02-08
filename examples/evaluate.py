@@ -86,7 +86,7 @@ def evaluate(model_args: ModelArgs,
 
     elif isinstance(attack, ReconstructionAttack):
         # Compute accuracy for the reconstruction/inference attack.
-        idx = random.sample(range(len(train_dataset)), len(train_dataset))
+        idx = random.sample(range(len(train_dataset)), len(train_dataset)) #shuffle
         dataset = train_dataset.select(idx)  # dict with 'text': seq and 'entity_class': 'ListPII (as a str)'
 
         tagger = TaggerFactory.from_ner_args(ner_args, env_args=env_args)

@@ -73,7 +73,7 @@ class ListPII:
     def get_entity_classes(self) -> List[str]:
         return list(set([pii.entity_class for pii in self.data]))
 
-    def unique(self):
+    def unique(self): # make sure the self is not repeated from training set
         mentions = []
         result = []
         for d_i in self.data:

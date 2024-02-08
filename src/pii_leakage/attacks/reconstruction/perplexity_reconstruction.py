@@ -46,17 +46,20 @@ class PerplexityReconstructionAttack(ReconstructionAttack):
         query_entities = tagger.analyze(str(imputed_masked_sequence))
         query_persons = [p.text for p in query_entities.get_by_entity_class('PERSON')]
 
-        # 4. Sample candidates
-        sampling_args = SamplingArgs(N=self.attack_args.sampling_rate, seq_len=32, generate_verbose=True,
-                                     prompt=prefix.rstrip())
-        generated_text: GeneratedTextList = lm.generate(sampling_args)
-        entities = tagger.analyze(str(generated_text))
-        candidates: List[str] = [p.text for p in entities.get_by_entity_class('PERSON') if
-                                 p.text not in query_persons]
-        candidates: List[str] = list(set(candidates))
+        # 4. Sample candidates # TODO change to reconstruction attack
+        N=self.attack_args.sampling_rate
+        inputs = lm._tokenizer(imputed_masked_sequence, return_tensors="pt")
+        logits = lm._lm(**inputs).logits
+        # sampling_args = SamplingArgs(N=self.attack_args.sampling_rate, seq_len=32, generate_verbose=True,
+        #                              prompt=prefix.rstrip())
+        # generated_text: GeneratedTextList = lm.generate(sampling_args)
+        # entities = tagger.analyze(str(generated_text))
+        # candidates: List[str] = [p.text for p in entities.get_by_entity_class('PERSON') if
+        #                          p.text not in query_persons]
+        # candidates: List[str] = list(set(candidates))
 
-        # 5. Compute the perplexity for each candidate
-        queries = [imputed_masked_sequence.replace("<T-MASK>", x) for x in candidates]
-        ppls = lm.perplexity(queries, return_as_list=True)
-        results: dict = {ppl: candidate for ppl, candidate in zip(ppls, candidates)}
+        # # 5. Compute the perplexity for each candidate
+        # queries = [imputed_masked_sequence.replace("<T-MASK>", x) for x in candidates]
+        # ppls = lm.perplexity(queries, return_as_list=True)
+        # results: dict = {ppl: candidate for ppl, candidate in zip(ppls, candidates)}
         return results
