@@ -90,7 +90,7 @@ class LanguageModel:
             if verbose:
                 print(f"> Loading a public, pre-trained {self.model_args.architecture} model.")
             # self._lm = model_cls.from_pretrained(self.model_args.architecture, return_dict=True).eval() #TODO change structure to decoder
-            config = BertGenerationConfig.from_pretrained("google/bert_for_seq_generation_L-24_bbc_encoder")
+            config = BertGenerationConfig.from_pretrained("(self.model_args.architecture")
             config.is_decoder = True 
             config.return_dict = True
             self._lm = BertGenerationDecoder.from_pretrained(
