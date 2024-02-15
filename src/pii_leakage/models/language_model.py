@@ -194,8 +194,7 @@ class LanguageModel:
             else [sampling_args.prompt] * r
         )
 
-        inputs = self._tokenizer(prompts, return_tensors="pt", padding=True, truncation=True) # TODO change padding max length to 512
-        # inputs = self._tokenizer(prompts, return_tensors="pt", padding="max_length", max_length=512,truncation=True) 
+        inputs = self._tokenizer(prompts, return_tensors="pt", padding=True, truncation=True) 
         
         input_ids = inputs['input_ids']
         attention_mask = inputs['attention_mask']

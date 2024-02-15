@@ -6,8 +6,8 @@ dataset_args:
 
 attack_args:
   attack_name: naive_extraction
-  sampling_rate: 15000
-  # sampling_rate: 2500
+  # sampling_rate: 15000
+  sampling_rate: 2500
   seq_len: 256
 
 model_args:
