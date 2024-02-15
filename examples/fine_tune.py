@@ -62,7 +62,7 @@ def fine_tune(model_args: ModelArgs,
 
     # -- Load the LM
     lm: LanguageModel = ModelFactory.from_model_args(model_args, env_args=env_args).load()
-    lm.print_sample()
+    # lm.print_sample()
 
     # -- Print configuration
     output_folder = outdir_args.create_folder_name()
