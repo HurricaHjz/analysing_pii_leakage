@@ -60,9 +60,9 @@ class CustomECHR(datasets.GeneratorBasedBuilder):
 
         self.data = [item for sublist in self.df["facts"] for item in sublist]
         if self.config.shuffle_facts_seed > 0:
-            N=len(self.data) #the original data TODO: change it back
-            # N=len(self.data)*0.3
-            # print("run with smaller version")
+            # N=len(self.data) #the original data TODO: change it back
+            N=len(self.data)*0.3
+            print("run with smaller version")
             self.data = [self.data[i] for i in rnd_idx(N, seed=self.config.shuffle_facts_seed)]
 
         return [
